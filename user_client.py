@@ -1,7 +1,5 @@
-"""User session - session string from env, no .session file."""
-from __future__ import annotations
+# user_client.py
 import logging
-from typing import Optional
 from wzgram import Client
 import config
 

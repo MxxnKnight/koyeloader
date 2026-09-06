@@ -1,4 +1,4 @@
-"""Freebuff Bot - send a link, bot handles the rest."""
+# bot.py
 from __future__ import annotations
 import asyncio
 import logging
@@ -8,7 +8,8 @@ import time
 from wzgram import Client, filters
 import config
 from downloader import get_file_info, AsyncStreamWrapper
-from uploader import upload_stream, copy_media, format_size, progress_bar, format_eta
+from uploader import upload_stream, copy_media
+from utils import format_size, progress_bar, format_eta, safe_edit
 from user_client import get_user_client
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s", stream=sys.stdout)
@@ -20,7 +21,7 @@ _sem = asyncio.Semaphore(1)
 
 
 def _parse_tg(text):
-    pat = r'(?:t\\.me|telegram\\.me)/(?:c/)?([a-zA-Z0-9_]+)(?:/(\\d+))?'
+    pat = r"(?:t\.me|telegram\.me)/(?:c/)?([a-zA-Z0-9_]+)(?:/(\d+))?"
     m = re.search(pat, text)
     if not m:
         return None, None
@@ -31,15 +32,8 @@ def _parse_tg(text):
 
 
 def _find_urls(text):
-    pat = r'https?://[^\\s<>" ]+'
+    pat = r'https?://[^\s<>" ]+'
     return re.findall(pat, text or "")
-
-
-async def _edit(msg, text):
-    try:
-        await msg.edit(text)
-    except Exception:
-        pass
 
 
 @bot.on_message(filters.private & (filters.text | filters.caption))
@@ -48,15 +42,14 @@ async def handle(client, message):
     tg_chat, tg_mid = _parse_tg(text)
     urls = _find_urls(text)
 
-    NL = chr(10)
     if tg_mid is None and not urls:
-        await message.reply("Send me a link:" + NL + NL + "- https://example.com/video.mp4" + NL + "- https://t.me/channel/123" + NL + "- https://t.me/c/1234567890/123")
+        await message.reply("Send me a link:" + chr(10) + chr(10) + "- https://example.com/video.mp4" + chr(10) + "- https://t.me/channel/123" + chr(10) + "- https://t.me/c/1234567890/123")
         return
 
     async with _sem:
         if tg_mid is not None:
             if _user is None:
-                await message.reply("User session not configured." + NL + "Set the USER_SESSION env var.")
+                await message.reply("User session not configured." + chr(10) + "Set the USER_SESSION env var.")
                 return
             status = await message.reply("Fetching from Telegram...")
             try:
@@ -93,9 +86,9 @@ async def handle(client, message):
             spd = dl / el
             rem = (tot - dl) / spd if spd > 0 else 0
             pct = (dl / tot * 100) if tot else 0
-            NL2 = chr(10)
-            txt = "**" + info.name + "**" + NL2 + progress_bar(pct) + NL2 + format_size(dl) + " / " + format_size(info.size) + NL2 + format_size(int(spd)) + "/s  ETA " + format_eta(rem)
-            asyncio.run_coroutine_threadsafe(_edit(status, txt), loop)
+            NL = chr(10)
+            txt = "**" + info.name + "**" + NL + progress_bar(pct) + NL + format_size(dl) + " / " + format_size(info.size) + NL + format_size(int(spd)) + "/s  ETA " + format_eta(rem)
+            asyncio.run_coroutine_threadsafe(safe_edit(status, txt), loop)
 
         stream = AsyncStreamWrapper(name=info.name, size=info.size, url=url, on_progress=_prog)
         try:

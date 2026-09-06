@@ -1,4 +1,4 @@
-"""In-memory streaming bridge - zero disk."""
+# downloader.py
 from __future__ import annotations
 import asyncio
 import io
@@ -108,22 +108,16 @@ class AsyncStreamWrapper:
 
     def seek(self, offset, whence=0):
         raise io.UnsupportedOperation("seek not supported")
-
     def tell(self):
         return self._downloaded
-
     def flush(self):
         pass
-
     def seekable(self):
         return False
-
     def readable(self):
         return True
-
     def writable(self):
         return False
-
     def __len__(self):
         return self.size
 
@@ -133,7 +127,7 @@ async def get_file_info(url):
         async with s.head(url, allow_redirects=True) as r:
             cd = r.headers.get("Content-Disposition", "")
             name = "download"
-            pat = r'filename\\*\\s*=\\x22?[^\\x22;\\s=]+'
+            pat = r"filename\*?\s*=\x22?(?:utf-8'')?([^\x22;\s=]+)"
             m = re.search(pat, cd, re.IGNORECASE)
             if m:
                 name = m.group(1).strip()
@@ -142,5 +136,5 @@ async def get_file_info(url):
         from urllib.parse import urlparse
         name = os.path.basename(urlparse(url).path) or "download"
         name = name.split("?")[0]
-    name = re.sub(r'[<>:\\x22/\\|?*]', "_", name)
+    name = re.sub(r'[<>:"/\\|?*]', "_", name)
     return FileInfo(name=name, size=size)

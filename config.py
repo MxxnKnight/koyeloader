@@ -1,4 +1,4 @@
-"""Configuration - all from Koyeb env vars."""
+# config.py
 import os
 import sys
 
