@@ -1,16 +1,14 @@
 """In-memory streaming bridge - zero disk."""
-
 from __future__ import annotations
-
 import asyncio
+import io
 import logging
 import os
 import queue
 import re
 import threading
 from dataclasses import dataclass
-from typing import AsyncIterator, Callable, Optional
-
+from typing import Callable, Optional
 import aiohttp
 import config
 
@@ -25,7 +23,7 @@ class FileInfo:
 
 
 class AsyncStreamWrapper:
-    """Bridges async chunk source into file-like object for wzgram."""
+    """Bridges async chunk source into a file-like object for wzgram."""
 
     def __init__(self, name, size, *, url=None, stream_generator=None, on_progress=None):
         self.name = name
@@ -35,13 +33,13 @@ class AsyncStreamWrapper:
         self._done = False
         self._error = None
         self._downloaded = 0
-        self._remainder = b''
+        self._remainder = b""
         if url:
             self._thread = threading.Thread(target=self._aiohttp_thread, args=(url,), daemon=True)
         elif stream_generator is not None:
             self._thread = threading.Thread(target=self._stream_gen_thread, args=(stream_generator,), daemon=True)
         else:
-            raise ValueError('Provide url or stream_generator')
+            raise ValueError("Provide url or stream_generator")
         self._thread.start()
 
     def _aiohttp_thread(self, url):
@@ -56,10 +54,11 @@ class AsyncStreamWrapper:
             loop.close()
 
     async def _aiohttp_download(self, url):
-        async with aiohttp.ClientSession() as s:
+        timeout = aiohttp.ClientTimeout(total=None, sock_read=60)
+        async with aiohttp.ClientSession(timeout=timeout) as s:
             async with s.get(url) as r:
                 if r.status != 200:
-                    raise RuntimeError(f'HTTP {r.status}')
+                    raise RuntimeError("HTTP " + str(r.status))
                 async for chunk in r.content.iter_chunked(CHUNK_SIZE):
                     self._queue.put(chunk)
                     self._downloaded += len(chunk)
@@ -97,49 +96,51 @@ class AsyncStreamWrapper:
             self._remainder = self._remainder[size:]
             return chunk
         try:
-            chunk = self._queue.get(timeout=30)
+            chunk = self._queue.get(timeout=60)
         except queue.Empty:
             if self._done:
-                return b''
-            raise TimeoutError('Stream timeout')
+                return b""
+            raise TimeoutError("Stream timeout: no data for 60s")
         if size != -1 and size < len(chunk):
             self._remainder = chunk[size:]
             return chunk[:size]
         return chunk
 
-    def __aiter__(self):
-        return self._async_iter()
+    def seek(self, offset, whence=0):
+        raise io.UnsupportedOperation("seek not supported")
 
-    async def _async_iter(self):
-        while True:
-            try:
-                yield self._queue.get_nowait()
-            except queue.Empty:
-                if self._done:
-                    if self._error:
-                        raise self._error
-                    break
-                await asyncio.sleep(0.05)
+    def tell(self):
+        return self._downloaded
+
+    def flush(self):
+        pass
+
+    def seekable(self):
+        return False
+
+    def readable(self):
+        return True
+
+    def writable(self):
+        return False
 
     def __len__(self):
         return self.size
-    def seekable(self):
-        return False
-    def readable(self):
-        return True
 
 
 async def get_file_info(url):
     async with aiohttp.ClientSession() as s:
         async with s.head(url, allow_redirects=True) as r:
-            cd = r.headers.get('Content-Disposition', '')
-            name = 'download'
-            m = re.search(r'filename[*]?=["']?([^"';\s]+)', cd, re.IGNORECASE)
+            cd = r.headers.get("Content-Disposition", "")
+            name = "download"
+            pat = r'filename\\*\\s*=\\x22?[^\\x22;\\s=]+'
+            m = re.search(pat, cd, re.IGNORECASE)
             if m:
                 name = m.group(1).strip()
-            size = int(r.headers.get('Content-Length', 0))
-    if name == 'download':
+            size = int(r.headers.get("Content-Length", 0))
+    if name == "download":
         from urllib.parse import urlparse
-        name = os.path.basename(urlparse(url).path) or 'download'
-        name = name.split('?')[0]
+        name = os.path.basename(urlparse(url).path) or "download"
+        name = name.split("?")[0]
+    name = re.sub(r'[<>:\\x22/\\|?*]', "_", name)
     return FileInfo(name=name, size=size)
