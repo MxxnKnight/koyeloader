@@ -35,6 +35,7 @@ class AsyncStreamWrapper(io.BufferedIOBase):
         self._error = None
         self._downloaded = 0
         self._remainder = b""
+        self._pos = 0
         if url:
             self._thread = threading.Thread(target=self._aiohttp_thread, args=(url,), daemon=True)
         elif stream_generator is not None:
@@ -108,17 +109,29 @@ class AsyncStreamWrapper(io.BufferedIOBase):
         return chunk
 
     def seek(self, offset, whence=0):
-        raise io.UnsupportedOperation("seek not supported")
+        # Pyrogram calls seek(0, SEEK_END) then tell() then seek(0)
+        # before any reads - this is just to get file_size
+        if whence == os.SEEK_END:
+            self._pos = self.size
+        else:
+            self._pos = offset
+        return self._pos
+
     def tell(self):
-        return self._downloaded
+        return self._pos
+
     def flush(self):
         pass
+
     def seekable(self):
-        return False
+        return True
+
     def readable(self):
         return True
+
     def writable(self):
         return False
+
     def __len__(self):
         return self.size
 

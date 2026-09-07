@@ -39,9 +39,11 @@ async def copy_media(user_client, bot_client, source_chat, message_id, destinati
     if msg.media is None:
         raise ValueError(f"Message {message_id} has no media")
     media = msg.media
-    is_vid = hasattr(media, "duration") and media.duration is not None
-    fn = getattr(media, "file_name", None) or f"media_{msg.id}"
-    fs = getattr(media, "file_size", 0) or 0
+    # Extract the actual document/video from the media wrapper
+    doc = getattr(media, "document", None) or getattr(media, "video", None) or media
+    is_vid = hasattr(doc, "duration") and doc.duration is not None
+    fn = getattr(doc, "file_name", None) or f"media_{msg.id}"
+    fs = getattr(doc, "file_size", 0) or 0
     log.info("copy_media: %s (%s) from %s msg %s", fn, format_size(fs), source_chat, message_id)
     gen = user_client.stream_media(msg, limit=None)
     sf = AsyncStreamWrapper(name=fn, size=fs, stream_generator=gen)
