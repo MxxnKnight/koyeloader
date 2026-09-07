@@ -15,7 +15,7 @@ from user_client import get_user_client
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s", stream=sys.stdout)
 log = logging.getLogger("freebuff")
 
-bot = Client("bot", bot_token=config.BOT_TOKEN, in_memory=True)
+bot = Client("bot", bot_token=config.BOT_TOKEN, api_id=config.API_ID, api_hash=config.API_HASH, in_memory=True)
 _user = get_user_client()
 _sem = asyncio.Semaphore(1)
 
@@ -114,6 +114,11 @@ async def _run():
         await _user.start()
         me = await _user.get_me()
         log.info("User session: %s", me.first_name)
+        # Sync dialogs to populate peer cache
+        count = 0
+        async for _ in _user.get_dialogs(limit=200):
+            count += 1
+        log.info("Synced %d dialogs", count)
     log.info("Running. Send a link to start.")
     await asyncio.Event().wait()
 

@@ -22,12 +22,13 @@ class FileInfo:
     size: int
 
 
-class AsyncStreamWrapper:
+class AsyncStreamWrapper(io.BufferedIOBase):
     """Bridges async chunk source into a file-like object for wzgram."""
 
     def __init__(self, name, size, *, url=None, stream_generator=None, on_progress=None):
         self.name = name
         self.size = size
+        self.mode = "rb"
         self._on_progress = on_progress
         self._queue = queue.Queue(maxsize=4)
         self._done = False

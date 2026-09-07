@@ -18,6 +18,6 @@ def get_user_client():
         api_id=config.API_ID,
         api_hash=config.API_HASH,
         session_string=config.USER_SESSION,
-        in_memory=True,
+        in_memory=False,
     )
     return _user_client

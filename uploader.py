@@ -27,7 +27,12 @@ async def copy_media(user_client, bot_client, source_chat, message_id, destinati
     import time, logging
     from utils import format_size
     log = logging.getLogger(__name__)
-    msgs = await user_client.get_messages(source_chat, ids=[message_id])
+    # Resolve peer so the session storage knows about this chat
+    try:
+        await user_client.get_chat(source_chat)
+    except Exception:
+        pass  # peer may already be cached, or get_chat fails for -100 IDs
+    msgs = await user_client.get_messages(source_chat, message_ids=[message_id])
     if not msgs or msgs[0] is None:
         raise ValueError(f"Message {message_id} not found in {source_chat}")
     msg = msgs[0]
